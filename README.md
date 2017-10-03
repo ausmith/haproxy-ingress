@@ -60,6 +60,7 @@ The following annotations are supported:
 ||`ingress.kubernetes.io/ssl-redirect`|[true\|false]|[doc](https://github.com/kubernetes/ingress/tree/master/examples/rewrite/haproxy)|
 ||`ingress.kubernetes.io/app-root`|/url|[doc](https://github.com/kubernetes/ingress/tree/master/examples/rewrite/haproxy)|
 ||`ingress.kubernetes.io/whitelist-source-range`|CIDR|-|
+|`[0]`|`ingress.kubernetes.io/rewrite-target`|path string|-|
 |`[0]`|[`ingress.kubernetes.io/server-alias`](#server-alias)|domain name or regex|-|
 
 ### Affinity
@@ -87,6 +88,16 @@ Alias rules will be checked at the very end of list or rules.
 It is allowed to be a regex.
 
 Note: `^` and `$` cannot be used because they are already included in ACL.
+
+### Rewrite Target
+
+Supported rewrite annotations:
+
+* `/`
+* `/path1`
+* `/path1/path2`
+
+Trailing slashes on rewrite target annotations are not supported.
 
 ## ConfigMap
 
