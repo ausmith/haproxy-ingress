@@ -108,6 +108,18 @@ frontend httpfront
 {{ range $server := $ing.HAServers }}
 {{ if $server.UseHTTP }}
 {{ range $location := $server.Locations }}
+    http-request set-var(req.ingress_orig_path) path
+    acl {{ $location.Backend }}_path_match var(req.ingress_orig_path) -m beg {{ $location.Path }} if or ishost-{{ $server.HostnameLabel }} ishost-{{ $server.HostnameLabel }}-alias
+{{ $rewriteTarget := $location.Rewrite.Target }}
+{{ if ne $rewriteTarget "" }}
+{{ if ne $server.Alias "" }}
+    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if {{ $location.Backend }}_path_match ishost-{{ $server.HostnameLabel }} or ishost-{{ $server.HostnameLabel }}-alias
+{{ else }}
+    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if {{ $location.Backend }}_path_match ishost-{{ $server.HostnameLabel }}
+{{ end }}
+{{ end }}
+{{ end }}
+{{ range $location := $server.Locations }}
 {{ if ne $location.HAWhitelist "" }}
     http-request deny if ishost-{{ $server.HostnameLabel }}{{ $location.HAMatchPath }} !{ src{{ $location.HAWhitelist }} }
 {{ end }}
@@ -169,11 +181,11 @@ frontend httpfront
 {{ if or $server.UseHTTP $hasHTTPStoHTTP }}
 {{ range $location := $server.Locations }}
 {{ if ne $location.Proxy.BodySize "" }}
-    use_backend error413 if ishost-{{ $server.HostnameLabel }} { path_beg {{ $location.Path }} } { req.body_size gt {{ sizeSuffix $location.Proxy.BodySize }} }
+    use_backend error413 if ishost-{{ $server.HostnameLabel }} {{ $location.Backend }}_path_match { req.body_size gt {{ sizeSuffix $location.Proxy.BodySize }} }
 {{ end }}
 {{ end }}
 {{ range $location := $server.Locations }}
-    use_backend {{ $location.Backend }} if ishost-{{ $server.HostnameLabel }} { path_beg {{ $location.Path }} }
+    use_backend {{ $location.Backend }} if ishost-{{ $server.HostnameLabel }} {{ $location.Backend }}_path_match
 {{ end }}
 {{ end }}
 {{ end }}
@@ -182,7 +194,7 @@ frontend httpfront
 {{ if or $server.UseHTTP $hasHTTPStoHTTP }}
 {{ range $location := $server.Locations }}
 {{ if ne $server.Alias "" }}
-    use_backend {{ $location.Backend }} if ishost-{{ $server.HostnameLabel }}-alias { path_beg {{ $location.Path }} }
+    use_backend {{ $location.Backend }} if ishost-{{ $server.HostnameLabel }}-alias {{ $location.Backend }}_path_match
 {{ end }}
 {{ end }}
 {{ end }}
@@ -284,14 +296,25 @@ frontend httpsfront-{{ $host }}
 {{ if ne $appRoot "" }}
     redirect location {{ $appRoot }} if { path / }
 {{ end }}
+
 {{ range $location := $server.Locations }}
 {{ if ne $location.Proxy.BodySize "" }}
-    use_backend error413 if { path_beg {{ $location.Path }} } { req.body_size gt {{ sizeSuffix $location.Proxy.BodySize }} }
+    use_backend error413 if {{ $location.Backend }}_path_match { req.body_size gt {{ sizeSuffix $location.Proxy.BodySize }} }
 {{ end }}
 {{ end }}
+
+{{ range $location := $server.Locations }}
+    http-request set-var(req.ingress_orig_path) path
+    acl {{ $location.Backend }}_path_match var(req.ingress_orig_path) -m beg {{ $location.Path }}
+{{ $rewriteTarget := $location.Rewrite.Target }}
+{{ if ne $rewriteTarget "" }}
+    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if {{ $location.Backend }}_path_match
+{{ end }}
+{{ end }}
+
 {{ range $location := $server.Locations }}
 {{ if not $location.IsRootLocation }}
-    use_backend {{ $location.Backend }} if { path_beg {{ $location.Path }} }
+    use_backend {{ $location.Backend }} if {{ $location.Backend }}_path_match
 {{ else }}
     default_backend {{ $location.Backend }}
 {{ end }}
