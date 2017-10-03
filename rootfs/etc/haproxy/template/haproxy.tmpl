@@ -105,8 +105,10 @@ frontend httpfront
     acl ishost-{{ $server.HostnameLabel }}-alias {{ if isRegexHostname $server.Alias }}hdr_reg(host) '{{ aliasRegex $server.Alias }}'{{ else }}hdr(host) {{ $server.Alias }} {{ $server.Alias }}:80{{ end }}
 {{ end }}
 {{ end }}
+
 {{ range $server := $ing.HAServers }}
 {{ if $server.UseHTTP }}
+    http-request set-var(req.path) path
 {{ range $location := $server.Locations }}
 {{ if ne $location.HAWhitelist "" }}
     http-request deny if ishost-{{ $server.HostnameLabel }}{{ $location.HAMatchPath }} !{ src{{ $location.HAWhitelist }} }
@@ -119,6 +121,18 @@ frontend httpfront
 {{ end }}
 {{ end }}
 {{ end }}
+
+{{ range $server := $ing.HAServers }}
+{{ if $server.UseHTTP }}
+{{ range $location := $server.Locations }}
+{{ $rewriteTarget := $location.Rewrite.Target }}
+{{ if ne $rewriteTarget "" }}
+    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if { var(req.path) -m beg {{ $location.Path }} } {{ if ne $server.Alias "" }} ishost-{{ $server.HostnameLabel }} or ishost-{{ $server.HostnameLabel }}-alias {{ else }} ishost-{{ $server.HostnameLabel }} {{ end }}
+{{ end }}
+{{ end }}
+{{ end }}
+{{ end }}
+
 {{ if eq $cfg.Forwardfor "add" }}
     reqidel ^X-Forwarded-For:.*
     option forwardfor
@@ -129,7 +143,7 @@ frontend httpfront
 {{ if $server.UseHTTP }}
 {{ $appRoot := $server.RootLocation.Rewrite.AppRoot }}
 {{ if ne $appRoot "" }}
-    redirect location {{ $appRoot }} if ishost-{{ $server.HostnameLabel }} { path / }
+    redirect location {{ $appRoot }} if ishost-{{ $server.HostnameLabel }} { var(req.path) -m str / }
 {{ end }}
 {{ end }}
 {{ end }}
@@ -169,11 +183,11 @@ frontend httpfront
 {{ if or $server.UseHTTP $hasHTTPStoHTTP }}
 {{ range $location := $server.Locations }}
 {{ if ne $location.Proxy.BodySize "" }}
-    use_backend error413 if ishost-{{ $server.HostnameLabel }} { path_beg {{ $location.Path }} } { req.body_size gt {{ sizeSuffix $location.Proxy.BodySize }} }
+    use_backend error413 if ishost-{{ $server.HostnameLabel }} { var(req.path) -m beg {{ $location.Path }} } { req.body_size gt {{ sizeSuffix $location.Proxy.BodySize }} }
 {{ end }}
 {{ end }}
 {{ range $location := $server.Locations }}
-    use_backend {{ $location.Backend }} if ishost-{{ $server.HostnameLabel }} { path_beg {{ $location.Path }} }
+    use_backend {{ $location.Backend }} if ishost-{{ $server.HostnameLabel }} { var(req.path) -m beg {{ $location.Path }} }
 {{ end }}
 {{ end }}
 {{ end }}
@@ -182,7 +196,7 @@ frontend httpfront
 {{ if or $server.UseHTTP $hasHTTPStoHTTP }}
 {{ range $location := $server.Locations }}
 {{ if ne $server.Alias "" }}
-    use_backend {{ $location.Backend }} if ishost-{{ $server.HostnameLabel }}-alias { path_beg {{ $location.Path }} }
+    use_backend {{ $location.Backend }} if ishost-{{ $server.HostnameLabel }}-alias { var(req.path) -m beg {{ $location.Path }} }
 {{ end }}
 {{ end }}
 {{ end }}
@@ -270,6 +284,7 @@ frontend httpsfront-{{ $host }}
     option forwardfor if-none
 {{ end }}
     http-request set-header X-Forwarded-Proto https
+    http-request set-var(req.path) path
 {{ if ne $authSSLCert.CAFileName "" }}
 {{ if eq $server.CertificateAuth.ErrorPage "" }}
     use_backend error495 if { ssl_c_ca_err gt 0 } || { ssl_c_err gt 0 }
@@ -281,18 +296,28 @@ frontend httpsfront-{{ $host }}
 {{ if $cfg.HSTS }}
     rspadd "Strict-Transport-Security: max-age={{ $cfg.HSTSMaxAge }}{{ if $cfg.HSTSIncludeSubdomains }}; includeSubDomains{{ end }}{{ if $cfg.HSTSPreload }}; preload{{ end }}"
 {{ end }}
+
 {{ $appRoot := $server.RootLocation.Rewrite.AppRoot }}
 {{ if ne $appRoot "" }}
-    redirect location {{ $appRoot }} if { path / }
+    redirect location {{ $appRoot }} if { var(req.path) -m str / }
 {{ end }}
+
+{{ range $location := $server.Locations }}
+{{ $rewriteTarget := $location.Rewrite.Target }}
+{{ if ne $rewriteTarget "" }}
+    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if { var(req.path) -m beg {{ $location.Path }} }
+{{ end }}
+{{ end }}
+
 {{ range $location := $server.Locations }}
 {{ if ne $location.Proxy.BodySize "" }}
-    use_backend error413 if { path_beg {{ $location.Path }} } { req.body_size gt {{ sizeSuffix $location.Proxy.BodySize }} }
+    use_backend error413 if { var(req.path) -m beg {{ $location.Path }} } { req.body_size gt {{ sizeSuffix $location.Proxy.BodySize }} }
 {{ end }}
 {{ end }}
+
 {{ range $location := $server.Locations }}
 {{ if not $location.IsRootLocation }}
-    use_backend {{ $location.Backend }} if { path_beg {{ $location.Path }} }
+    use_backend {{ $location.Backend }} if { var(req.path) -m beg {{ $location.Path }} }
 {{ else }}
     default_backend {{ $location.Backend }}
 {{ end }}

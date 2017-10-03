@@ -60,6 +60,7 @@ The following annotations are supported:
 ||`ingress.kubernetes.io/ssl-redirect`|[true\|false]|[doc](https://github.com/kubernetes/ingress/tree/master/examples/rewrite/haproxy)|
 ||`ingress.kubernetes.io/app-root`|/url|[doc](https://github.com/kubernetes/ingress/tree/master/examples/rewrite/haproxy)|
 ||`ingress.kubernetes.io/whitelist-source-range`|CIDR|-|
+|`[0]`|`ingress.kubernetes.io/rewrite-target`|path string|-|
 |`[0]`|[`ingress.kubernetes.io/server-alias`](#server-alias)|domain name or regex|-|
 
 ### Affinity
