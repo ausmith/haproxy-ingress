@@ -105,19 +105,12 @@ frontend httpfront
     acl ishost-{{ $server.HostnameLabel }}-alias {{ if isRegexHostname $server.Alias }}hdr_reg(host) '{{ aliasRegex $server.Alias }}'{{ else }}hdr(host) {{ $server.Alias }} {{ $server.Alias }}:80{{ end }}
 {{ end }}
 {{ end }}
+
 {{ range $server := $ing.HAServers }}
 {{ if $server.UseHTTP }}
-{{ range $location := $server.Locations }}
     http-request set-var(req.ingress_orig_path) path
+{{ range $location := $server.Locations }}
     acl {{ $location.Backend }}_path_match var(req.ingress_orig_path) -m beg {{ $location.Path }} if or ishost-{{ $server.HostnameLabel }} ishost-{{ $server.HostnameLabel }}-alias
-{{ $rewriteTarget := $location.Rewrite.Target }}
-{{ if ne $rewriteTarget "" }}
-{{ if ne $server.Alias "" }}
-    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if {{ $location.Backend }}_path_match ishost-{{ $server.HostnameLabel }} or ishost-{{ $server.HostnameLabel }}-alias
-{{ else }}
-    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if {{ $location.Backend }}_path_match ishost-{{ $server.HostnameLabel }}
-{{ end }}
-{{ end }}
 {{ end }}
 {{ range $location := $server.Locations }}
 {{ if ne $location.HAWhitelist "" }}
@@ -131,6 +124,18 @@ frontend httpfront
 {{ end }}
 {{ end }}
 {{ end }}
+
+{{ range $server := $ing.HAServers }}
+{{ if $server.UseHTTP }}
+{{ range $location := $server.Locations }}
+{{ $rewriteTarget := $location.Rewrite.Target }}
+{{ if ne $rewriteTarget "" }}
+    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if {{ $location.Backend }}_path_match {{ if ne $server.Alias "" }} ishost-{{ $server.HostnameLabel }} or ishost-{{ $server.HostnameLabel }}-alias {{ else }} ishost-{{ $server.HostnameLabel }} {{ end }}
+{{ end }}
+{{ end }}
+{{ end }}
+{{ end }}
+
 {{ if eq $cfg.Forwardfor "add" }}
     reqidel ^X-Forwarded-For:.*
     option forwardfor
@@ -298,18 +303,21 @@ frontend httpsfront-{{ $host }}
     redirect location {{ $appRoot }} if { path / }
 {{ end }}
 
+    http-request set-var(req.ingress_orig_path) path
 {{ range $location := $server.Locations }}
-{{ if ne $location.Proxy.BodySize "" }}
-    use_backend error413 if {{ $location.Backend }}_path_match { req.body_size gt {{ sizeSuffix $location.Proxy.BodySize }} }
+    acl {{ $location.Backend }}_path_match var(req.ingress_orig_path) -m beg {{ $location.Path }}
+{{ end }}
+
+{{ range $location := $server.Locations }}
+{{ $rewriteTarget := $location.Rewrite.Target }}
+{{ if ne $rewriteTarget "" }}
+    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if {{ $location.Backend }}_path_match
 {{ end }}
 {{ end }}
 
 {{ range $location := $server.Locations }}
-    http-request set-var(req.ingress_orig_path) path
-    acl {{ $location.Backend }}_path_match var(req.ingress_orig_path) -m beg {{ $location.Path }}
-{{ $rewriteTarget := $location.Rewrite.Target }}
-{{ if ne $rewriteTarget "" }}
-    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if {{ $location.Backend }}_path_match
+{{ if ne $location.Proxy.BodySize "" }}
+    use_backend error413 if {{ $location.Backend }}_path_match { req.body_size gt {{ sizeSuffix $location.Proxy.BodySize }} }
 {{ end }}
 {{ end }}
 
