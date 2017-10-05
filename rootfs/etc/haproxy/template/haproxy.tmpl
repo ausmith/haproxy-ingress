@@ -127,7 +127,7 @@ frontend httpfront
 {{ range $location := $server.Locations }}
 {{ $rewriteTarget := $location.Rewrite.Target }}
 {{ if ne $rewriteTarget "" }}
-    reqrep ^([^\ :]*)\ {{ $location.Path }}(.*) \1\ {{ $rewriteTarget }}\2 if { var(req.path) -m beg {{ $location.Path }} } {{ if ne $server.Alias "" }} ishost-{{ $server.HostnameLabel }} or ishost-{{ $server.HostnameLabel }}-alias {{ else }} ishost-{{ $server.HostnameLabel }} {{ end }}
+    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if { var(req.path) -m beg {{ $location.Path }} } {{ if ne $server.Alias "" }} ishost-{{ $server.HostnameLabel }} or ishost-{{ $server.HostnameLabel }}-alias {{ else }} ishost-{{ $server.HostnameLabel }} {{ end }}
 {{ end }}
 {{ end }}
 {{ end }}
@@ -235,6 +235,16 @@ frontend httpsfront
 {{ end }}
 {{ end }}
 {{ end }}
+{{/* Host header support for https, no one likes this */}}
+{{ range $server := $ing.HAServers }}
+{{ if $server.UseHTTPS }}
+{{ if isWildcardHostname $server.Hostname }}
+    use_backend httpsback-{{ $server.HostnameLabel }} if { req.hdr(host) -m reg -i {{ $server.Hostname }} }
+{{ else }}
+    use_backend httpsback-{{ $server.HostnameLabel }} if or { req.hdr(host) -i {{ $server.Hostname }} } { req.hdr(host) -i {{ $server.Hostname }}:443 }
+{{ end }}
+{{ end }}
+{{ end }}
     default_backend httpsback-default-backend
 {{ if ne $cfg.TCPLogFormat "" }}
     log-format {{ $cfg.TCPLogFormat }}
@@ -305,7 +315,7 @@ frontend httpsfront-{{ $host }}
 {{ range $location := $server.Locations }}
 {{ $rewriteTarget := $location.Rewrite.Target }}
 {{ if ne $rewriteTarget "" }}
-    reqrep ^([^\ :]*)\ {{ $location.Path }}(.*) \1\ {{ $rewriteTarget }}\2 if { var(req.path) -m beg {{ $location.Path }} }
+    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if { var(req.path) -m beg {{ $location.Path }} }
 {{ end }}
 {{ end }}
 
@@ -352,6 +362,26 @@ frontend httpsfront-default-backend
 {{ end }}
 {{ if $cfg.HSTS }}
     rspadd "Strict-Transport-Security: max-age={{ $cfg.HSTSMaxAge }}{{ if $cfg.HSTSIncludeSubdomains }}; includeSubDomains{{ end }}{{ if $cfg.HSTSPreload }}; preload{{ end }}"
+{{ end }}
+{{/* Host header support for https, no one likes this */}}
+{{ range $server := $ing.HAServers }}
+{{ if $server.UseHTTPS }}
+{{ range $location := $server.Locations }}
+{{ if not $location.IsRootLocation }}
+{{ if isWildcardHostname $server.Hostname }}
+    use_backend {{ $location.Backend }} if { var(req.path) -m beg {{ $location.Path }} } { req.hdr(host) -m reg -i {{ $server.Hostname }} }
+{{ else }}
+    use_backend {{ $location.Backend }} if { var(req.path) -m beg {{ $location.Path }} } { req.hdr(host) -i {{ $server.Hostname }} }
+{{ end }}
+{{ else }}
+{{ if isWildcardHostname $server.Hostname }}
+    use_backend {{ $location.Backend }} if { req.hdr(host) -m reg -i {{ $server.Hostname }} }
+{{ else }}
+    use_backend {{ $location.Backend }} if { req.hdr(host) -i {{ $server.Hostname }} }
+{{ end }}
+{{ end }}
+{{ end }}
+{{ end }}
 {{ end }}
     default_backend {{ $location.Backend }}
 
