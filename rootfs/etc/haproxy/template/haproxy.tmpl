@@ -294,6 +294,7 @@ frontend httpsfront-{{ $host }}
     option forwardfor if-none
 {{ end }}
     http-request set-header X-Forwarded-Proto https
+    http-request set-var(req.path) path
 {{ if ne $authSSLCert.CAFileName "" }}
 {{ if eq $server.CertificateAuth.ErrorPage "" }}
     use_backend error495 if { ssl_c_ca_err gt 0 } || { ssl_c_err gt 0 }
@@ -306,7 +307,6 @@ frontend httpsfront-{{ $host }}
     rspadd "Strict-Transport-Security: max-age={{ $cfg.HSTSMaxAge }}{{ if $cfg.HSTSIncludeSubdomains }}; includeSubDomains{{ end }}{{ if $cfg.HSTSPreload }}; preload{{ end }}"
 {{ end }}
 
-    http-request set-var(req.path) path
 {{ $appRoot := $server.RootLocation.Rewrite.AppRoot }}
 {{ if ne $appRoot "" }}
     redirect location {{ $appRoot }} if { var(req.path) -m str / }
