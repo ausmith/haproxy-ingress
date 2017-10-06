@@ -106,9 +106,9 @@ frontend httpfront
 {{ end }}
 {{ end }}
 
+    http-request set-var(req.path) path
 {{ range $server := $ing.HAServers }}
 {{ if $server.UseHTTP }}
-    http-request set-var(req.path) path
 {{ range $location := $server.Locations }}
 {{ if ne $location.HAWhitelist "" }}
     http-request deny if ishost-{{ $server.HostnameLabel }}{{ $location.HAMatchPath }} !{ src{{ $location.HAWhitelist }} }
@@ -127,7 +127,8 @@ frontend httpfront
 {{ range $location := $server.Locations }}
 {{ $rewriteTarget := $location.Rewrite.Target }}
 {{ if ne $rewriteTarget "" }}
-    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if { var(req.path) -m beg {{ $location.Path }} } {{ if ne $server.Alias "" }} ishost-{{ $server.HostnameLabel }} or ishost-{{ $server.HostnameLabel }}-alias {{ else }} ishost-{{ $server.HostnameLabel }} {{ end }}
+    reqrep ^([^\ :]*)\ {{ $location.Path }}/(.*$) \1\ {{ if eq $rewriteTarget "/" }}/{{ else }}{{ $rewriteTarget }}/{{ end }}\2 if { var(req.path) -m beg {{ $location.Path }} } {{ if ne $server.Alias "" }} ishost-{{ $server.HostnameLabel }} or ishost-{{ $server.HostnameLabel }}-alias {{ else }} ishost-{{ $server.HostnameLabel }} {{ end }}
+    reqrep ^([^\ :]*)\ {{ $location.Path }}(.*$) \1\ {{ $rewriteTarget }}\2 if { var(req.path) -m beg {{ $location.Path }} } {{ if ne $server.Alias "" }} ishost-{{ $server.HostnameLabel }} or ishost-{{ $server.HostnameLabel }}-alias {{ else }} ishost-{{ $server.HostnameLabel }} {{ end }}
 {{ end }}
 {{ end }}
 {{ end }}
@@ -315,7 +316,8 @@ frontend httpsfront-{{ $host }}
 {{ range $location := $server.Locations }}
 {{ $rewriteTarget := $location.Rewrite.Target }}
 {{ if ne $rewriteTarget "" }}
-    reqrep ^([^\ :]*)\ {{ $location.Path }}[/]?(.*) \1\ {{ $rewriteTarget }}\2 if { var(req.path) -m beg {{ $location.Path }} }
+    reqrep ^([^\ :]*)\ {{ $location.Path }}/(.*$) \1\ {{ if eq $rewriteTarget "/" }}/{{ else }}{{ $rewriteTarget }}/{{ end }}\2 if { var(req.path) -m beg {{ $location.Path }} }
+    reqrep ^([^\ :]*)\ {{ $location.Path }}(.*$) \1\ {{ $rewriteTarget }}\2 if { var(req.path) -m beg {{ $location.Path }} }
 {{ end }}
 {{ end }}
 

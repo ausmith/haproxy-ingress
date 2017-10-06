@@ -89,6 +89,16 @@ It is allowed to be a regex.
 
 Note: `^` and `$` cannot be used because they are already included in ACL.
 
+### Rewrite Target
+
+Supported rewrite annotations:
+
+* `/`
+* `/path1`
+* `/path1/path2`
+
+Trailing slashes on rewrite target annotations are not supported.
+
 ## ConfigMap
 
 If using ConfigMap to configure HAProxy Ingress, use
