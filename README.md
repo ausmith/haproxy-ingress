@@ -159,6 +159,7 @@ The following parameters are supported:
 ||[`timeout-server`](#timeout)|time with suffix|`50s`|
 ||[`timeout-server-fin`](#timeout)|time with suffix|`50s`|
 ||[`timeout-tunnel`](#timeout)|time with suffix|`1h`|
+|`[0]`|[`use-host-on-https`](#use-host-on-https)|[true\|false]|`false`|
 |`[0]`|[`use-proxy-protocol`](#use-proxy-protocol)|[true\|false]|`false`|
 
 ### balance-algorithm
@@ -339,3 +340,9 @@ configuration.
 
 * http://cbonte.github.io/haproxy-dconv/1.7/configuration.html#5.1-accept-proxy
 * http://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
+
+### use-host-on-https
+
+SNI headers are the correct way to select an HTTPS backend. However, sometimes applications
+and services must also support host headers being used to select an HTTPS ingress. To enable
+this, set the `use-host-on-htps` ConfigMap option to `true`.

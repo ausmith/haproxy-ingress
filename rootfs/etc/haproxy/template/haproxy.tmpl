@@ -353,6 +353,30 @@ frontend httpsfront-default-backend
 {{- if $cfg.HSTS }}
     http-response set-header Strict-Transport-Security "max-age={{ $cfg.HSTSMaxAge }}{{ if $cfg.HSTSIncludeSubdomains }}; includeSubDomains{{ end }}{{ if $cfg.HSTSPreload }}; preload{{ end }}"
 {{- end }}
+
+{{- if $cfg.UseHostOnHTTPS }}
+{{- /* Host header support for https */}}
+{{- range $altserver := $ing.HAServers }}
+{{- if $altserver.UseHTTPS }}
+{{- range $altlocation := $altserver.Locations }}
+{{- if not $altlocation.IsRootLocation }}
+{{- if isWildcardHostname $altserver.Hostname }}
+    use_backend {{ $altlocation.Backend }} if { var(req.path) -m beg {{ $altlocation.Path }} } { req.hdr(host) -m reg -i {{ $altserver.Hostname }} }
+{{- else }}
+    use_backend {{ $altlocation.Backend }} if { var(req.path) -m beg {{ $altlocation.Path }} } { req.hdr(host) -i {{ $altserver.Hostname }} }
+{{- end }}
+{{- else }}
+{{- if isWildcardHostname $altserver.Hostname }}
+    use_backend {{ $altlocation.Backend }} if { req.hdr(host) -m reg -i {{ $altserver.Hostname }} }
+{{- else }}
+    use_backend {{ $altlocation.Backend }} if { req.hdr(host) -i {{ $altserver.Hostname }} }
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
     default_backend {{ $location.Backend }}
 
 ######
